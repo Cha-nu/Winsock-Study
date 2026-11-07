@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Winsock/Winsock.vcxproj" Id="02c158ec-523d-4cf9-aa18-b819055271a9" />
+</Solution>
