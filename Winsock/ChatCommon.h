@@ -11,12 +11,21 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <charconv>
 
 #pragma comment(lib, "Ws2_32.lib")
 
 namespace chat {
 constexpr unsigned short Port = 27017;
 constexpr size_t MaxMessage = 1024; // UTF-8 바이트 수 기준
+
+// 실험은 최대 5초로 제한한다. 잘못된 입력은 필터를 만들기 전에 거절한다.
+inline bool ParseLossSeconds(const std::string& value, unsigned& seconds)
+{
+    const auto parsed = std::from_chars(value.data(), value.data() + value.size(), seconds);
+    return parsed.ec == std::errc{} && parsed.ptr == value.data() + value.size()
+        && seconds >= 1 && seconds <= 5;
+}
 
 // 함수의 모든 return 경로에서 WSACleanup이 호출되도록 수명을 묶는다.
 struct Network {

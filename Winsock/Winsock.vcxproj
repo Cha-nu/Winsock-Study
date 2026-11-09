@@ -148,9 +148,11 @@
     <ClCompile Include="UdpMovement.cpp" />
     <ClCompile Include="ChatServer.cpp" />
     <ClCompile Include="ChatClient.cpp" />
+    <ClCompile Include="PacketLoss.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ChatCommon.h" />
+    <ClInclude Include="PacketLoss.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

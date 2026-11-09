@@ -1,4 +1,5 @@
 #include "ChatCommon.h"
+#include "PacketLoss.h"
 #include <atomic>
 #include <iostream>
 #include <thread>
@@ -43,6 +44,7 @@ int RunChatClient(const char* host)
     }
 
     std::printf("Connected. Enter messages (max 1024 UTF-8 bytes). /quit to leave.\n");
+    std::printf("/loss [1-5]: real inbound TCP packet loss for N seconds (default 3, Administrator required).\n");
     std::atomic<bool> connected{ true };
     // 수신 스레드: 사용자가 입력 중이어도 다른 사람의 메시지를 받는다.
     // 소켓은 메인 스레드가 이 스레드의 종료를 확인한 뒤 닫는다.
@@ -65,8 +67,19 @@ int RunChatClient(const char* host)
     std::string message;
     int exitCode = 0;
     while (connected && std::getline(std::cin, message)) {
+        // 파이프 입력(PowerShell 등)의 첫 줄에 붙는 UTF-8 BOM을 제거해야 명령어가 인식된다.
+        if (message.compare(0, 3, "\xEF\xBB\xBF") == 0) message.erase(0, 3);
         if (!connected || message == "/quit") break;
         if (message.empty()) continue;
+        if (message == "/loss" || message.compare(0, 6, "/loss ") == 0) {
+            unsigned seconds = 3;
+            if (message != "/loss" && !chat::ParseLossSeconds(message.substr(6), seconds)) {
+                std::printf("Usage: /loss [1-5 seconds]\n");
+                continue;
+            }
+            if (!RunPacketLossTest(connection, seconds, connected)) { exitCode = 1; break; }
+            continue;
+        }
         if (message.size() > chat::MaxMessage) {
             std::printf("Message too long (maximum 1024 UTF-8 bytes).\n");
             continue;

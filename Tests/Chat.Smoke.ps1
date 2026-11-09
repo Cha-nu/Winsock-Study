@@ -1,4 +1,7 @@
-param([string]$Exe = "$PSScriptRoot/../build/Chat/Winsock.exe")
+param(
+    [string]$Exe = "$PSScriptRoot/../build/Chat/Winsock.exe",
+    [string]$ServerHost = '127.0.0.1'
+)
 $ErrorActionPreference = 'Stop'
 $Exe = (Resolve-Path -LiteralPath $Exe).Path
 $processes = [System.Collections.Generic.List[System.Diagnostics.Process]]::new()
@@ -39,15 +42,15 @@ function Send-Input($Process, [string]$Message) {
 $raw = $null
 $oversized = $null
 try {
-    $server = Start-Chat 'chat-server'
+    $server = Start-Chat 'server'
     Expect-Line $server.StandardOutput 'Chat server listening'
     # Drain logs asynchronously so a full pipe cannot block the server.
     $serverOutput = $server.StandardOutput.ReadToEndAsync()
     $serverErrors = $server.StandardError.ReadToEndAsync()
 
-    $alice = Start-Chat 'chat-client'
+    $alice = Start-Chat "client $ServerHost"
     Expect-Line $alice.StandardOutput 'You are user1.'
-    $bob = Start-Chat 'chat-client localhost'
+    $bob = Start-Chat "chat-client $ServerHost"
     Expect-Line $bob.StandardOutput 'You are user2.'
     Send-Input $alice 'hello from Alice'
     Expect-Line $alice.StandardOutput '[user1] hello from Alice'
@@ -57,7 +60,7 @@ try {
     Expect-Line $bob.StandardOutput '[user2] hello from Bob'
     Write-Output 'PASS: two real chat clients send and receive broadcasts'
 
-    $raw = [System.Net.Sockets.TcpClient]::new('127.0.0.1', 27017)
+    $raw = [System.Net.Sockets.TcpClient]::new($ServerHost, 27017)
     $stream = $raw.GetStream()
     $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::UTF8)
     Expect-Line $reader 'You are user3.'
@@ -86,7 +89,7 @@ try {
     }
     Write-Output 'PASS: multiple messages in one send remain separate'
 
-    $oversized = [System.Net.Sockets.TcpClient]::new('127.0.0.1', 27017)
+    $oversized = [System.Net.Sockets.TcpClient]::new($ServerHost, 27017)
     $largeStream = $oversized.GetStream()
     $largeReader = [System.IO.StreamReader]::new($largeStream)
     Expect-Line $largeReader 'You are user4.'
@@ -105,6 +108,18 @@ try {
 
     $server.Kill()
     $server.WaitForExit()
+    $logs = $serverOutput.Result
+    foreach ($expected in @(
+        "user1 ${ServerHost}:",
+        'ACCEPT: established connection',
+        'SEND ',
+        'RECV EOF: peer gracefully closed',
+        'SHUTDOWN SD_SEND:',
+        'CLOSE: socket released'
+    )) {
+        if (-not $logs.Contains($expected)) { throw "Missing TCP log: $expected" }
+    }
+    Write-Output 'PASS: server logs peer endpoint, IO, and graceful disconnect lifecycle'
     Expect-Line $alice.StandardOutput 'Disconnected from server'
     Send-Input $alice ''
     if (-not $alice.WaitForExit(5000)) { throw 'Client failed to exit after server disconnect' }
